@@ -1,4 +1,5 @@
 import json
+from time import sleep
 
 import pygame
 
@@ -70,6 +71,8 @@ class Note:
                     element != 0 for element in self.next_ids
                 ):
                     color = (255, 255, 0)
+                if self.mode == 2:  # slide note
+                    color = (128, 0, 128)
                 pygame.draw.circle(
                     game.game_window, color, (x, y), 10
                 )  # self.color, size
@@ -127,7 +130,7 @@ def main():
     game = GameWindowSingleton()
 
     # Step 2: Load and parse the JSON file
-    with open("9002___Snow Wings___Master") as file:
+    with open("sheets/2013___凸凹スピードスター___MasterPlus") as file:
         data = json.load(file)
 
     num_lanes = 5  # data['metadata']['level']
@@ -135,9 +138,9 @@ def main():
     mapper = data["metadata"]["mapper"]
     density = data["metadata"]["density"]
     notes_data = data["notes"]
-    # sleep(10)
+    sleep(10)
     pygame.mixer.init()  # Initialize the mixer module
-    pygame.mixer.music.load("song_9002.wav")  # Load the music file
+    pygame.mixer.music.load("songs/song_2013.wav")  # Load the music file
     pygame.mixer.music.play()  # Start playing the music
 
     # Step 4: Game loop
@@ -148,12 +151,23 @@ def main():
         note = Note(note_data)
         all_notes.append(note)
         id_to_note[note.note_id] = note
+
     prev_ids_pairs = []
     for note in all_notes:
         for prev_id in note.prev_ids:
             if prev_id != 0:
                 prev_ids_pairs.append((id_to_note[prev_id], note))
                 id_to_note[prev_id].next_ids.append(note)
+
+    pairs = []
+    left = 0
+    right = 1
+    while right < len(all_notes):
+        if all_notes[left].time == all_notes[right].time:
+            pairs.append((all_notes[left], all_notes[right]))
+            right += 1
+        else:
+            left += 1
 
     judgement_circles = []  # Store the judgement circles based on the number of lanes
     for i in range(num_lanes):
@@ -190,6 +204,20 @@ def main():
             if prev_note.is_visible(time):
                 start_line_point = prev_note.get_pos_based_on_time(time, game)
                 end_line_point = note.get_pos_based_on_time(time, game)
+                pygame.draw.line(
+                    game.game_window,
+                    (255, 255, 255),
+                    start_line_point,
+                    end_line_point,
+                )
+
+        # draw simultaneous notes lines
+        for pair in pairs:
+            note1 = pair[0]
+            note2 = pair[1]
+            if note1.is_visible(time) and note2.is_visible(time):
+                start_line_point = note1.get_pos_based_on_time(time, game)
+                end_line_point = note2.get_pos_based_on_time(time, game)
                 pygame.draw.line(
                     game.game_window,
                     (255, 255, 255),
