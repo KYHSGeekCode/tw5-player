@@ -37,6 +37,20 @@ class Note:
         self.size = note_data["Size"]
         self.speed = note_data["Speed"]
         self.position = self.start_line
+        self.next_ids = []
+
+    def get_pos_based_on_time(self, time, game):
+        end_line_x = (
+            self.end_line - 1
+        ) * game.lane_width + game.lane_width // 2  # Adjust the position based on the lane
+        start_line_x = (self.start_line - 1) * game.lane_width + game.lane_width // 2
+        x = (end_line_x - start_line_x) * (
+            time - self.time
+        ) + end_line_x  # / (self.time - 0.0)
+        y = (game.window_height - 0.0) * (
+            time - self.time
+        ) + game.window_height  # / (self.time - 0.0)
+        return x, y
 
     def draw(self, game, time):
         # Implement the drawing logic for the note circle
@@ -49,21 +63,15 @@ class Note:
             # at t0: (x = start_line, y = 0)
             # at t1 (time): (x = end_line, y = window_height)
             # at t: (x = ?, y = ?)
-            end_line_x = (
-                self.end_line - 1
-            ) * game.lane_width + game.lane_width // 2  # Adjust the position based on the lane
-            start_line_x = (
-                self.start_line - 1
-            ) * game.lane_width + game.lane_width // 2
-            x = (end_line_x - start_line_x) * (
-                time - self.time
-            ) + end_line_x  # / (self.time - 0.0)
-            y = (game.window_height - 0.0) * (
-                time - self.time
-            ) + game.window_height  # / (self.time - 0.0)
+            x, y = self.get_pos_based_on_time(time, game)
             if self.flick == 0:
+                color = (255, 0, 0)
+                if any(element != 0 for element in self.prev_ids) or any(
+                    element != 0 for element in self.next_ids
+                ):
+                    color = (255, 255, 0)
                 pygame.draw.circle(
-                    game.game_window, (255, 255, 0), (x, y), 10
+                    game.game_window, color, (x, y), 10
                 )  # self.color, size
             elif self.flick == 1:
                 arrow_width = 60  # Width of the arrow
@@ -134,12 +142,18 @@ def main():
 
     # Step 4: Game loop
     running = True
-    time = 0
-    live_notes = []
     all_notes = []
+    id_to_note = {}
     for note_data in notes_data:
         note = Note(note_data)
         all_notes.append(note)
+        id_to_note[note.note_id] = note
+    prev_ids_pairs = []
+    for note in all_notes:
+        for prev_id in note.prev_ids:
+            if prev_id != 0:
+                prev_ids_pairs.append((id_to_note[prev_id], note))
+                id_to_note[prev_id].next_ids.append(note)
 
     judgement_circles = []  # Store the judgement circles based on the number of lanes
     for i in range(num_lanes):
@@ -170,13 +184,24 @@ def main():
                 (i * lane_width, 0),
                 (i * lane_width, game.window_height),
             )
+        # draw connection lines
+        for prev_ids_pair in prev_ids_pairs:
+            prev_note, note = prev_ids_pair
+            if prev_note.is_visible(time):
+                start_line_point = prev_note.get_pos_based_on_time(time, game)
+                end_line_point = note.get_pos_based_on_time(time, game)
+                pygame.draw.line(
+                    game.game_window,
+                    (255, 255, 255),
+                    start_line_point,
+                    end_line_point,
+                )
 
         # Update and draw the notes
-
         for live_note in all_notes:
             live_note.draw(game, time)
 
-            # Update and draw the judgement circles
+        # Update and draw the judgement circles
         for judgement_circle in judgement_circles:
             judgement_circle.draw(game)
 
@@ -184,8 +209,8 @@ def main():
         game.clock.tick(60)  # Limit the frame rate
         # time += 1 / 60  # Update the time
 
-    pygame.quit()
 
+pygame.quit()
 
 if __name__ == "__main__":
     main()
